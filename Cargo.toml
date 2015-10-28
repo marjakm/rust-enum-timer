@@ -1,0 +1,12 @@
+[package]
+name    = "enum_timer"
+version = "0.1.0"
+authors = ["Mattis Marjak <mattis.marjak@gmail.com>"]
+license = "MIT"
+
+[dependencies]
+log     = "*"
+
+[dev-dependencies]
+fern    = "*"
+time    = "*"
