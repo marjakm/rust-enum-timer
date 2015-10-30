@@ -6,7 +6,4 @@ license = "MIT"
 
 [dependencies]
 log     = "*"
-
-[dev-dependencies]
-fern    = "*"
 time    = "*"

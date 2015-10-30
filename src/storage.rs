@@ -22,15 +22,39 @@
  * SOFTWARE.
  */
 
-#[macro_use]
-extern crate log;
-extern crate time;
+use time::SteadyTime;
+use ::timer::TimerAction;
 
-mod timer;
-mod storage;
 
-#[cfg(test)]
-mod test;
 
-pub use timer::{Timer, TimerAction};
-pub use storage::{TimerStorage, TimerEvent};
+pub struct TimerEvent<T> {
+    pub variant: T,
+    pub when:    SteadyTime,
+}
+
+pub trait TimerStorage<T, E>
+    where T: Clone,
+          E: Iterator<Item=Option<TimerEvent<T>>> {
+    fn clear(&mut self, variant: &T);
+    fn set(&mut self, variant: &T, when: SteadyTime);
+    fn iter(&self) -> E;
+
+    fn next_action(&mut self) -> TimerAction<T> {
+        let mut timeout = 60_000;
+        let mut trigger = None;
+        let now = SteadyTime::now();
+        for evt in self.iter().filter_map(|x| x) {
+            let time_to_event = (now-evt.when).num_milliseconds();
+            if time_to_event <= 0 {
+                trigger = Some(evt.variant.clone());
+                break
+            } else if time_to_event < timeout {
+                timeout = time_to_event;
+            }
+        };
+        match trigger {
+            Some(x) => { self.clear(&x); TimerAction::Trigger(x) },
+            None    => TimerAction::Wait(timeout as u32)
+        }
+    }
+}
