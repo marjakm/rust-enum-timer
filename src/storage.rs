@@ -26,7 +26,7 @@ use time::SteadyTime;
 use ::timer::TimerAction;
 
 
-
+#[derive(Debug)]
 pub struct TimerEvent<T> {
     pub variant: T,
     pub when:    SteadyTime,

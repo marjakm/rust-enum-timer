@@ -25,16 +25,21 @@
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::{Arc, Mutex, Condvar};
 use std::thread::spawn;
+use std::fmt;
 use time::{SteadyTime, Duration};
 use ::storage::{TimerStorage, TimerEvent};
 
-
-pub struct Timer<T> {
+pub struct Timer<T: fmt::Debug> {
     sender: Sender<TimerRequest<T>>,
     sync:   Arc<(Mutex<bool>, Condvar)>,
 }
+impl<T: fmt::Debug> fmt::Debug for Timer<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Timer<{:?}>", stringify!(T))
+    }
+}
 
-impl<T> Timer<T> where T: Clone+Send+'static, (Fn(T)): Send {
+impl<T> Timer<T> where T: Clone+Send+'static+fmt::Debug, (Fn(T)): Send {
     pub fn new<S, E>(process: Box<(Fn(T))>, storage: S) -> Self
         where S: TimerStorage<T, E>+Send+'static,
               E: Iterator<Item=Option<TimerEvent<T>>> {
@@ -63,7 +68,7 @@ impl<T> Timer<T> where T: Clone+Send+'static, (Fn(T)): Send {
     }
 }
 
-impl<T> Drop for Timer<T> {
+impl<T: fmt::Debug> Drop for Timer<T> {
     fn drop(&mut self) {
         let &(ref mtex, ref cvar) = &*self.sync;
         let mut should_stop = mtex.lock().unwrap();
@@ -77,6 +82,7 @@ enum TimerRequest<T> {
     Stop(T),
 }
 
+#[derive(Debug)]
 pub enum TimerAction<T> {
     Trigger(T),
     Wait(u32),
