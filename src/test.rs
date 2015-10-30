@@ -10,33 +10,17 @@ enum Event {
 struct EventStorage {
     yks:  Option<SteadyTime>,
     kaks: Option<SteadyTime>,
+    idx:  Option<Event>,
 }
 
-struct EventIterator<'a> {
-    storage: &'a EventStorage,
-    idx:     u32,
-}
-impl<'a> EventIterator<'a> {
-    pub fn new(storage: &'a EventStorage) -> EventIterator<'a> {
-        EventIterator { storage: storage, idx: 0}
+impl TimerStorage<Event> for EventStorage {
+    fn new() -> Self {
+        EventStorage {
+            yks:  None,
+            kaks: None,
+            idx:  Some(Event::Yks),
+        }
     }
-}
-impl<'a> Iterator for EventIterator<'a> {
-    type Item = Option<TimerEvent<Event>>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let res = match self.idx {
-            0 => if self.storage.yks.is_some() { Some(Some(TimerEvent {variant: Event::Yks, when: self.storage.yks.as_ref().unwrap()} ))} else { Some(None) },
-            1 => if self.storage.kaks.is_some() { Some(Some(TimerEvent {variant: Event::Kaks, when: self.storage.kaks.as_ref().unwrap()} ))} else { Some(None) },
-            _ => None
-        };
-        self.idx += 1;
-        res
-    }
-
-}
-
-impl<'a> TimerStorage<Event, EventIterator<'a>> for EventStorage {
 
     fn clear(&mut self, variant: &Event) {
         match *variant {
@@ -52,14 +36,41 @@ impl<'a> TimerStorage<Event, EventIterator<'a>> for EventStorage {
         }
     }
 
-    fn iter(&'a self) -> EventIterator {
-        EventIterator::new(self)
+    fn reset_next(&mut self) {
+        self.idx = Some(Event::Yks);
+    }
+
+    fn next(&mut self) -> Option<TimerEvent<Event>> {
+        loop {
+            match self.idx {
+                Some(Event::Yks)  => {
+                    self.idx = Some(Event::Kaks);
+                    if self.yks.is_some() {
+                        return Some(TimerEvent {variant: Event::Yks, when: self.yks.as_ref().unwrap().clone()})
+                    }
+                },
+                Some(Event::Kaks) => {
+                    self.idx = None;
+                    if self.kaks.is_some() {
+                        return Some(TimerEvent {variant: Event::Kaks, when: self.kaks.as_ref().unwrap().clone()})
+                    }
+                },
+                _ => {
+                    self.idx = Some(Event::Yks);
+                    return None
+                }
+            };
+        }
     }
 
 }
 
+use std::thread;
 
 #[test]
-fn test_name() {
-    unimplemented!()
+fn manual_timer() {
+    let t = Timer::new::<EventStorage, _>(|e| println!("Event triggered: {:?}", e));
+    t.start(Event::Yks, 700);
+    t.start(Event::Kaks, 200);
+    thread::sleep_ms(4000);
 }

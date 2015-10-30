@@ -27,7 +27,7 @@ use std::sync::{Arc, Mutex, Condvar};
 use std::thread::spawn;
 use std::fmt;
 use time::{SteadyTime, Duration};
-use ::storage::{TimerStorage, TimerEvent};
+use ::storage::TimerStorage;
 
 pub struct Timer<T: fmt::Debug> {
     sender: Sender<TimerRequest<T>>,
@@ -39,19 +39,20 @@ impl<T: fmt::Debug> fmt::Debug for Timer<T> {
     }
 }
 
-impl<T> Timer<T> where T: Clone+Send+'static+fmt::Debug, (Fn(T)): Send {
-    pub fn new<S, E>(process: Box<(Fn(T))>, storage: S) -> Self
-        where S: TimerStorage<T, E>+Send+'static,
-              E: Iterator<Item=Option<TimerEvent<T>>> {
+impl<T> Timer<T> where T: Clone+Send+'static+fmt::Debug {
+    pub fn new<S, F>(process: F) -> Self
+        where S: TimerStorage<T>+Send+'static,
+              F: Fn(T) -> (),
+              F: Send + 'static {
 
         let (sender, receiver) = channel::<TimerRequest<T>>();
         let sync  = Arc::new((Mutex::new(false), Condvar::new()));
         let sync2 = sync.clone();
-        spawn(move || timer_thread(receiver, process, sync2, storage));
+        spawn(move || timer_thread(receiver, process, sync2, S::new()));
         Timer { sender: sender, sync: sync }
     }
 
-    pub fn start_timer(&self, variant: T, timeout: u32) {
+    pub fn start(&self, variant: T, timeout: u32) {
         self.sender.send(TimerRequest::Start(variant, SteadyTime::now()+Duration::milliseconds(timeout as i64)))
             .unwrap_or_else(|e| panic!("Start timer send error: {:?}", e));
         let &(ref mtex, ref cvar) = &*self.sync;
@@ -59,7 +60,7 @@ impl<T> Timer<T> where T: Clone+Send+'static+fmt::Debug, (Fn(T)): Send {
         cvar.notify_one();
     }
 
-    pub fn stop_timer(&self, variant: T) {
+    pub fn stop(&self, variant: T) {
         self.sender.send(TimerRequest::Stop(variant))
             .unwrap_or_else(|e| panic!("Stop timer send error: {:?}", e));
             let &(ref mtex, ref cvar) = &*self.sync;
@@ -88,13 +89,14 @@ pub enum TimerAction<T> {
     Wait(u32),
 }
 
-fn timer_thread<T, S, E>(receiver:     Receiver<TimerRequest<T>>,
-                             process:      Box<(Fn(T))>,
-                             sync:         Arc<(Mutex<bool>, Condvar)>,
-                             mut storage:  S )
-                             where T: Clone,
-                                   S: TimerStorage<T, E>,
-                                   E: Iterator<Item=Option<TimerEvent<T>>> {
+fn timer_thread<T, S, F>(receiver:     Receiver<TimerRequest<T>>,
+                         process:      F,
+                         sync:         Arc<(Mutex<bool>, Condvar)>,
+                         mut storage:  S )
+                where T: Clone+fmt::Debug,
+                      S: TimerStorage<T>,
+                      F: Fn(T) -> (),
+                      F: Send + 'static {
     let &(ref mtex, ref cvar) = &*sync;
     let mut mutex = mtex.lock().unwrap();
     while !*mutex {
@@ -106,7 +108,7 @@ fn timer_thread<T, S, E>(receiver:     Receiver<TimerRequest<T>>,
         };
         match storage.next_action() {
             TimerAction::Trigger(var)  => {
-                (*process)(var);
+                process(var);
             },
             TimerAction::Wait(timeout) => {
                 mutex = cvar.wait_timeout_ms(mutex, timeout).unwrap().0;

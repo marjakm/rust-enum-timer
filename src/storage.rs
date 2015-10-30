@@ -24,27 +24,29 @@
 
 use time::SteadyTime;
 use ::timer::TimerAction;
+use std::fmt;
 
 
 #[derive(Debug)]
-pub struct TimerEvent<T> {
+pub struct TimerEvent<T: fmt::Debug> {
     pub variant: T,
     pub when:    SteadyTime,
 }
 
-pub trait TimerStorage<T, E>
-    where T: Clone,
-          E: Iterator<Item=Option<TimerEvent<T>>> {
+pub trait TimerStorage<T> where T: Clone+fmt::Debug {
+    fn new() -> Self;
     fn clear(&mut self, variant: &T);
     fn set(&mut self, variant: &T, when: SteadyTime);
-    fn iter(&self) -> E;
+    fn next(&mut self) -> Option<TimerEvent<T>>;
+    fn reset_next(&mut self);
 
     fn next_action(&mut self) -> TimerAction<T> {
         let mut timeout = 60_000;
         let mut trigger = None;
         let now = SteadyTime::now();
-        for evt in self.iter().filter_map(|x| x) {
-            let time_to_event = (now-evt.when).num_milliseconds();
+        self.reset_next();
+        while let Some(evt) = self.next() {
+            let time_to_event = (evt.when-now).num_milliseconds();
             if time_to_event <= 0 {
                 trigger = Some(evt.variant.clone());
                 break
