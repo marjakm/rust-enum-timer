@@ -33,6 +33,9 @@ extern crate time;
 mod timer;
 mod storage;
 
+#[macro_use]
+mod macros;
+
 #[cfg(test)]
 mod test;
 
