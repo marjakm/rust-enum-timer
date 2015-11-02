@@ -94,7 +94,7 @@ et_create_enum_timer! { GEventStorage;
     #[derive(Debug, Clone)]
     pub enum GEvent {
         Yks,
-        Kaks
+        Kaks,
     }
 }
 

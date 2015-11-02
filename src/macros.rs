@@ -27,7 +27,7 @@ macro_rules! et_create_enum_timer {
     ( $storage_name:ident;
         $(#[$attr:meta])*
         pub enum $enum_name:ident {
-            $($var:ident),*
+            $($var:ident,)*
         }
     ) => {
         // Create enum itself
