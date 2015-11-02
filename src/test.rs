@@ -92,7 +92,7 @@ impl TimerStorage<Event> for EventStorage {
 
 et_create_enum_timer! { GEventStorage;
     #[derive(Debug, Clone)]
-    enum GEvent {
+    pub enum GEvent {
         Yks,
         Kaks
     }

@@ -26,19 +26,19 @@
 macro_rules! et_create_enum_timer {
     ( $storage_name:ident;
         $(#[$attr:meta])*
-        enum $enum_name:ident {
+        pub enum $enum_name:ident {
             $($var:ident),*
         }
     ) => {
         // Create enum itself
         $(#[$attr])*
-        enum $enum_name {
+        pub enum $enum_name {
             $($var),*
         }
 
         // Create timer storage
         #[allow(non_snake_case)]
-        struct $storage_name {
+        pub struct $storage_name {
             $($var : Option<SteadyTime>,)*
             idx: Option<$enum_name>
         }
