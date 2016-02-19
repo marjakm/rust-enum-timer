@@ -43,8 +43,20 @@ macro_rules! et_create_enum_timer {
             idx: Option<$enum_name>
         }
 
+        impl $storage_name {
+            fn reset_next(&mut self) {
+                self.idx = Some(_et_first!($enum_name, $($var),*));
+            }
+
+            fn next(&mut self) -> Option<TimerEvent<$enum_name>> {
+                loop {
+                    _et_match_statement!( self, $enum_name > $($var),* );
+                };
+            }
+        }
+
         // Implement TimerStorage trait on storage
-        impl TimerStorage<$enum_name> for $storage_name {
+        impl $crate::TimerStorage<$enum_name> for $storage_name {
             fn new() -> Self {
                 $storage_name {
                     $($var : None,)*
@@ -64,14 +76,24 @@ macro_rules! et_create_enum_timer {
                 }
             }
 
-            fn reset_next(&mut self) {
-                self.idx = Some(_et_first!($enum_name, $($var),*));
-            }
-
-            fn next(&mut self) -> Option<TimerEvent<$enum_name>> {
-                loop {
-                    _et_match_statement!( self, $enum_name > $($var),* );
+            fn next_action(&mut self) -> $crate::TimerAction<$enum_name> {
+                let mut timeout = 60_000;
+                let mut trigger = None;
+                let now = SteadyTime::now();
+                self.reset_next();
+                while let Some(evt) = self.next() {
+                    let time_to_event = (evt.when-now).num_milliseconds();
+                    if time_to_event <= 0 {
+                        trigger = Some(evt.variant.clone());
+                        break
+                    } else if time_to_event < timeout {
+                        timeout = time_to_event;
+                    }
                 };
+                match trigger {
+                    Some(x) => { self.clear(&x); $crate::TimerAction::Trigger(x) },
+                    None    => $crate::TimerAction::Wait(timeout as u32)
+                }
             }
 
         }

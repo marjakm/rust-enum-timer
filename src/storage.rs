@@ -22,9 +22,9 @@
  * SOFTWARE.
  */
 
+use std::fmt;
 use time::SteadyTime;
 use ::timer::TimerAction;
-use std::fmt;
 
 
 #[derive(Debug)]
@@ -37,26 +37,41 @@ pub trait TimerStorage<T> where T: Clone+fmt::Debug {
     fn new() -> Self;
     fn clear(&mut self, variant: &T);
     fn set(&mut self, variant: &T, when: SteadyTime);
-    fn next(&mut self) -> Option<TimerEvent<T>>;
-    fn reset_next(&mut self);
+    fn next_action(&mut self) -> TimerAction<T>;
+}
+
+impl<T: fmt::Debug+Clone+PartialOrd> TimerStorage<T> for Vec<TimerEvent<T>> {
+    fn new() -> Self {
+        Vec::new()
+    }
+
+    fn clear(&mut self, variant: &T) {
+        self.retain(|e| e.variant != *variant);
+    }
+
+    fn set(&mut self, variant: &T, when: SteadyTime) {
+        TimerStorage::clear(self, variant);
+        let evt = TimerEvent {variant:variant.clone(), when:when};
+        let idx = match self.get(0) {
+            Some(x) if x.when < evt.when => {
+                match self.iter().enumerate().find(|&(_,v)| v.when > evt.when) {
+                    Some((i, _)) => i,
+                    None => self.len()
+                }
+            },
+            _ => 0
+        };
+        self.insert(idx, evt);
+    }
 
     fn next_action(&mut self) -> TimerAction<T> {
-        let mut timeout = 60_000;
-        let mut trigger = None;
-        let now = SteadyTime::now();
-        self.reset_next();
-        while let Some(evt) = self.next() {
-            let time_to_event = (evt.when-now).num_milliseconds();
-            if time_to_event <= 0 {
-                trigger = Some(evt.variant.clone());
-                break
-            } else if time_to_event < timeout {
-                timeout = time_to_event;
-            }
-        };
-        match trigger {
-            Some(x) => { self.clear(&x); TimerAction::Trigger(x) },
-            None    => TimerAction::Wait(timeout as u32)
+        let first = self.get(0).map(|x| x.clone());
+        match first {
+            Some(evt) => match (evt.when-SteadyTime::now()).num_milliseconds() {
+                t if t < 0 => TimerAction::Trigger(evt.variant.clone()),
+                t          => TimerAction::Wait(t as u32)
+            },
+            None      => TimerAction::Wait(60_000)
         }
     }
 }

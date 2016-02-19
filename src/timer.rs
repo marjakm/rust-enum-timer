@@ -22,10 +22,10 @@
  * SOFTWARE.
  */
 
-use std::sync::mpsc::{channel, Sender, Receiver};
-use std::sync::{Arc, Mutex, Condvar};
-use std::thread::spawn;
 use std::fmt;
+use std::thread::spawn;
+use std::sync::{Arc, Mutex, Condvar};
+use std::sync::mpsc::{channel, Sender, Receiver};
 use time::{SteadyTime, Duration};
 use ::storage::TimerStorage;
 
@@ -111,7 +111,7 @@ fn timer_thread<T, S, F>(receiver:     Receiver<TimerRequest<T>>,
                 process(var);
             },
             TimerAction::Wait(timeout) => {
-                mutex = cvar.wait_timeout_ms(mutex, timeout).unwrap().0;
+                mutex = cvar.wait_timeout(mutex, ::std::time::Duration::from_millis(timeout as u64)).unwrap().0;
             }
         }
     }
