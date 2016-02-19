@@ -52,8 +52,8 @@ impl<T> Timer<T> where T: Clone+Send+'static+fmt::Debug {
         Timer { sender: sender, sync: sync }
     }
 
-    pub fn start(&self, variant: T, timeout: u32) {
-        self.sender.send(TimerRequest::Start(variant, SteadyTime::now()+Duration::milliseconds(timeout as i64)))
+    pub fn start(&self, variant: T, timeout: Duration) {
+        self.sender.send(TimerRequest::Start(variant, SteadyTime::now()+timeout))
             .unwrap_or_else(|e| panic!("Start timer send error: {:?}", e));
         let &(ref mtex, ref cvar) = &*self.sync;
         let _m = mtex.lock().unwrap();
