@@ -27,8 +27,8 @@ use time::SteadyTime;
 use ::timer::TimerAction;
 
 
-#[derive(Debug)]
-pub struct TimerEvent<T: fmt::Debug> {
+#[derive(Debug, Clone)]
+pub struct TimerEvent<T: Clone+fmt::Debug> {
     pub variant: T,
     pub when:    SteadyTime,
 }
@@ -65,10 +65,10 @@ impl<T: fmt::Debug+Clone+PartialOrd> TimerStorage<T> for Vec<TimerEvent<T>> {
     }
 
     fn next_action(&mut self) -> TimerAction<T> {
-        let first = self.get(0).map(|x| x.clone());
+        let first = self.get(0).map(|x| (*x).clone());
         match first {
             Some(evt) => match (evt.when-SteadyTime::now()).num_milliseconds() {
-                t if t < 0 => TimerAction::Trigger(evt.variant.clone()),
+                t if t < 0 => TimerAction::Trigger({ TimerStorage::clear(self, &evt.variant); evt.variant.clone() }),
                 t          => TimerAction::Wait(t as u32)
             },
             None      => TimerAction::Wait(60_000)
